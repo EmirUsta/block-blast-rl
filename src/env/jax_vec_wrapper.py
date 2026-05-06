@@ -125,6 +125,10 @@ class JaxBlockBlastVecEnv(VecEnv):
             truncated_jax,
             ep_returns_pre,
             ep_lengths_pre,
+            rew_step_jax,
+            rew_line_clear_jax,
+            rew_terminal_jax,
+            n_cleared_jax,
         ) = self._step_fn(self._state, self._actions_jax)
 
         # Tek stratejik block: jit kuyruğu birikmesin (open-loop async dispatch
@@ -138,13 +142,31 @@ class JaxBlockBlastVecEnv(VecEnv):
         reward = np.asarray(reward_jax, dtype=np.float32)
         done = np.asarray(done_jax, dtype=bool)
 
-        N = self.num_envs
+        # Reward decomposition (her step host'a düşen küçük scalar topla).
+        # PPO callback bu değerleri info[i]["rew_components"] üzerinden alır,
+        # ortalama / rollout TB'ye yazar. Step başına maliyeti ihmal edilebilir
+        # (4 × N float32, N=512 için 8 KB).
+        rew_step_np = np.asarray(rew_step_jax, dtype=np.float32)
+        rew_lc_np = np.asarray(rew_line_clear_jax, dtype=np.float32)
+        rew_term_np = np.asarray(rew_terminal_jax, dtype=np.float32)
+        n_cleared_np = np.asarray(n_cleared_jax, dtype=np.int32)
 
-        # Sıcak yol — done.any()=False çoğunlukta. info boş; pre_obs/truncated/
-        # ep_stats host'a hiç inmesin. (Eski versiyon Python loop 2048× iterate
-        # ediyor + pre_obs full host'a iniyordu, ikisi de gereksiz.)
+        N = self.num_envs
+        # Aggregate component sum (env-bazında scalar değil, batch ortalaması)
+        # — callback sadece batch ortalamasını TB'ye yazacak.
+        comp_summary = {
+            "step": float(rew_step_np.mean()),
+            "line_clear": float(rew_lc_np.mean()),
+            "terminal": float(rew_term_np.mean()),
+            "clears_step_mean": float(n_cleared_np.mean()),
+            "clears_step_max": int(n_cleared_np.max()),
+        }
+
+        # Sıcak yol — done.any()=False çoğunlukta. info[0]'a comp_summary koy
+        # (callback'in bulması için tek bir yere yeter, full N kopyalamaya gerek yok).
         if not done.any():
             infos: list[dict[str, Any]] = [{} for _ in range(N)]
+            infos[0]["rew_components"] = comp_summary
             return post_obs_np, reward, done, infos
 
         # Bazı env'ler done — pre_obs full indir (slicing yerine; JAX gather op
@@ -156,6 +178,7 @@ class JaxBlockBlastVecEnv(VecEnv):
         ep_l = np.asarray(ep_lengths_pre, dtype=np.int32)
 
         infos = [{} for _ in range(N)]
+        infos[0]["rew_components"] = comp_summary
         trunc_only_idx = np.where(truncated & ~terminated)[0]
         for i in trunc_only_idx:
             infos[int(i)]["TimeLimit.truncated"] = True

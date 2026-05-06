@@ -58,12 +58,16 @@ class JaxEnvCfg(NamedTuple):
     r_bumpiness: float
     r_line_base: float
     r_line_exp: float
+    # 5-element tuple — table[clip(n_cleared, 0..4)] direct lookup. Hashable
+    # for jit static arg. Default (0,0,0,0,0) → table path inactive.
+    r_line_table: tuple
     hole_max_size: int
     max_steps: int
     same_tray_unique: bool
     use_hole_penalty: bool
     use_bumpiness: bool
     use_line_clear: bool
+    use_line_table: bool
 
 
 @flax.struct.dataclass
@@ -106,6 +110,17 @@ def cfg_from_yaml(config_path: str | Path) -> JaxEnvCfg:
     r_hole = float(rw.get("hole_penalty", 0.0))
     r_bump = float(rw.get("bumpiness_penalty", 0.0))
     r_lb = float(rw.get("line_clear_base", 0.0))
+    raw_table = rw.get("line_clear_table")
+    if raw_table is not None:
+        if len(raw_table) != 5:
+            raise ValueError(
+                f"reward.line_clear_table must have 5 elements (idx 0..4), got {len(raw_table)}"
+            )
+        table_tuple = tuple(float(x) for x in raw_table)
+        use_table = any(abs(v) > 0 for v in table_tuple)
+    else:
+        table_tuple = (0.0, 0.0, 0.0, 0.0, 0.0)
+        use_table = False
     return JaxEnvCfg(
         r_step=float(rw.get("step", 1.0)),
         r_game_over=float(rw.get("game_over", -10.0)),
@@ -114,12 +129,14 @@ def cfg_from_yaml(config_path: str | Path) -> JaxEnvCfg:
         r_bumpiness=r_bump,
         r_line_base=r_lb,
         r_line_exp=float(rw.get("line_clear_exp", 3.0)),
+        r_line_table=table_tuple,
         hole_max_size=int(rw.get("hole_max_size", 2)),
         max_steps=int(c["episode"]["max_steps"]),
         same_tray_unique=bool(c["tray"].get("same_tray_unique", True)),
         use_hole_penalty=(r_hole != 0.0),
         use_bumpiness=(r_bump != 0.0),
-        use_line_clear=(r_lb != 0.0 or rw.get("line_clear_table") is not None),
+        use_line_clear=(r_lb != 0.0 or use_table),
+        use_line_table=use_table,
     )
 
 
@@ -349,24 +366,33 @@ def _step_kernel(
     # Recompute mask (post-place + post-clear + post-refill)
     mask_post_step = build_action_mask(boards2, tray2, game_over1, piece_cells_pad)
 
-    # Reward: r_step (valid) ya da r_invalid (~valid)
-    reward = jnp.where(valid, jnp.float32(cfg.r_step), jnp.float32(cfg.r_invalid))
+    # Reward decomposition — bileşenler ayrı tutulur, info dict'e raporlanır.
+    # Step bonus: +r_step (valid) ya da r_invalid (~valid)
+    rew_step = jnp.where(valid, jnp.float32(cfg.r_step), jnp.float32(cfg.r_invalid))
 
-    # Optional line clear reward (build-time flag → compile dışında bypass)
-    if cfg.use_line_clear and cfg.r_line_base != 0.0:
+    # Line clear bileşeni (build-time flag → compile dışı bypass v4a'da)
+    if cfg.use_line_table:
+        # Table lookup: r_line_table[clip(n_cleared, 0..4)]
+        table = jnp.asarray(cfg.r_line_table, dtype=jnp.float32)
+        idx = jnp.minimum(n_cleared, jnp.int32(table.size - 1))
+        rew_line_clear = jnp.where(valid, table[idx], jnp.float32(0.0))
+    elif cfg.use_line_clear and cfg.r_line_base != 0.0:
         non_zero = n_cleared > 0
-        lc = jnp.where(
+        rew_line_clear = jnp.where(
             non_zero,
             jnp.float32(cfg.r_line_base) * (jnp.float32(cfg.r_line_exp) ** jnp.maximum(0, n_cleared - 1).astype(jnp.float32)),
             jnp.float32(0.0),
         )
-        reward = reward + lc
+    else:
+        rew_line_clear = jnp.zeros_like(rew_step)
 
     # No-legal → terminate (yalnızca daha önce game_over olmayanlar için)
     no_legal = ~mask_post_step.any(axis=1)
     new_go = no_legal & ~game_over1
-    reward = reward + jnp.where(new_go, jnp.float32(cfg.r_game_over), jnp.float32(0.0))
+    rew_terminal = jnp.where(new_go, jnp.float32(cfg.r_game_over), jnp.float32(0.0))
     game_over2 = game_over1 | new_go
+
+    reward = rew_step + rew_line_clear + rew_terminal
 
     # step_count / history / frame_buf push (valid only)
     step_count1 = jnp.where(valid, state.step_count + 1, state.step_count)
@@ -452,6 +478,12 @@ def _step_kernel(
         truncated,
         ep_returns_pre,
         ep_lengths_pre,
+        # Reward decomposition — adapter info dict'ine yazar, TB callback ile
+        # rew/step_bonus, rew/line_clear, rew/terminal eğrilerini izleriz.
+        rew_step.astype(jnp.float32),
+        rew_line_clear.astype(jnp.float32),
+        rew_terminal.astype(jnp.float32),
+        n_cleared.astype(jnp.int32),
     )
 
 

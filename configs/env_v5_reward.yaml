@@ -1,0 +1,51 @@
+# env_v5_reward — v4a + yumuşak line_clear_table.
+#
+# Hipotez: line clear intrinsic-aligned (zaten survival'a fayda) → küçük
+# bonus eklemek policy'nin clear'ları aktif aramasını sağlar, ama yumuşak
+# eğri jackpot zorlamaz. v4b table [0,2,10,40,120] glass cannon yarattı;
+# v5_reward table [0,2,8,25,60] yarısı kadar agresif.
+#
+# Aynı tutulan (v4a env.yaml ile birebir):
+#   - step: 1.0
+#   - game_over: -10.0
+#   - invalid_action: -1.0
+#   - hole_penalty: 0.0   (defansif spiral riski yok)
+#   - bumpiness_penalty: 0.0
+#   - line_clear_base: 0.0  (table aktif olduğu için kullanılmıyor)
+#   - max_steps: 5000
+#   - same_tray_unique: true
+
+board:
+  size: 8
+
+tray:
+  size: 3
+  same_tray_unique: true
+
+pieces:
+  config_file: configs/pieces.yaml
+
+episode:
+  max_steps: 5000
+
+reward:
+  step: 1.0
+  game_over: -10.0
+  invalid_action: -1.0
+
+  # v5_reward: yumuşak line_clear_table (idx 0..4 = 0..4+ line clear)
+  # 1-line:   2  → küçük teşvik (1-line zaten survival'a fayda, bonus minimum)
+  # 2-line:   8  → +6 marjinal kazanç, daha güçlü bonus
+  # 3-line:  25  → jackpot eşiği, ama v4b'nin 40'ından düşük
+  # 4-line:  60  → max bonus, v4b'nin 120'sinin yarısı
+  line_clear_table: [0, 2, 8, 25, 60]
+
+  # v4b tarzı hole/component penalty YOK (defansif spiral testi)
+  hole_penalty: 0.0
+  hole_max_size: 2
+  bumpiness_penalty: 0.0
+
+  # Backward-compat: line_clear_base+exp formülü kapalı (table dominantsa
+  # zaten çağrılmıyor)
+  line_clear_base: 0.0
+  line_clear_exp: 3.0

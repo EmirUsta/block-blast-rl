@@ -1,0 +1,42 @@
+# v7_v5reward — şampiyon v6b_jax_512x64 + line_clear_table=[0,2,8,25,60]
+#
+# Ablation tek değişken: env_config v4a env.yaml → env_v5_reward.yaml.
+# PPO hyperparam'ları v6b ile birebir aynı.
+#
+# Eğitim komutu:
+#   python -m src.scripts.train --config configs/ppo_v5_jax.yaml --use-jax \
+#          --run-name v7_v5reward --total-timesteps 10000000
+
+algo: MaskablePPO
+policy: MultiInputPolicy
+
+policy_kwargs:
+  features_dim: 256
+  cnn_channels: [32, 64]
+  history_embed_dim: 16
+
+learning_rate: 3.0e-4
+n_steps: 64                   # v6b ile aynı
+batch_size: 1024
+n_epochs: 10
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.2
+ent_coef: 0.01
+vf_coef: 0.5
+max_grad_norm: 0.5
+target_kl: 0.03
+
+n_envs: 512
+total_timesteps: 10_000_000
+
+eval_freq: 25_000
+n_eval_episodes: 20
+checkpoint_freq: 100_000
+
+env_config: configs/env_v5_reward.yaml   # ← tek değişiklik (v4a → v5_reward)
+tensorboard_log: logs/tensorboard
+verbose: 1
+
+seed: 53
+device: auto

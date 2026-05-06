@@ -17,6 +17,7 @@ from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
+from src.ai.callbacks import RewardComponentLogger
 from src.ai.policy import BlockBlastFeatureExtractor
 from src.env.batch_env import BlockBlastBatchEnv
 from src.env.env import BlockBlastEnv
@@ -138,6 +139,10 @@ def main() -> int:
             deterministic=True,
             render=False,
         ),
+        # JAX VecEnv reward decomposition logging (rew/step_bonus,
+        # rew/line_clear, rew/terminal). info[0]["rew_components"]'i okur.
+        # Numpy backend kullanıldığında info[0]'da bu alan olmaz → no-op.
+        RewardComponentLogger(),
     ]
 
     print(f"Run: {run_name}")
