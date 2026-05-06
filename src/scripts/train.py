@@ -20,6 +20,8 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 from src.ai.policy import BlockBlastFeatureExtractor
 from src.env.batch_env import BlockBlastBatchEnv
 from src.env.env import BlockBlastEnv
+# JAX env import lazy yapılır (use_jax=True olunca) — JAX kurulu değilse
+# baseline numpy/subproc kullanıcılarını import error ile kırmasın.
 
 
 def _make_env(config_path: str, seed: int):
@@ -40,6 +42,8 @@ def main() -> int:
                         help="SubprocVecEnv kullan (default: DummyVecEnv)")
     parser.add_argument("--use-batch", action="store_true",
                         help="BlockBlastBatchEnv (tek-process vectorized) kullan; --use-subproc'i ezer")
+    parser.add_argument("--use-jax", action="store_true",
+                        help="JaxBlockBlastVecEnv (GPU-resident) kullan; --use-batch ve --use-subproc'i ezer")
     args = parser.parse_args()
 
     with open(args.config, "r", encoding="utf-8") as f:
@@ -54,7 +58,11 @@ def main() -> int:
 
     eval_fns = [_make_env(cfg["env_config"], seed + 1000 + i) for i in range(2)]
 
-    if args.use_batch:
+    if args.use_jax:
+        from src.env.jax_vec_wrapper import JaxBlockBlastVecEnv
+        train_env = JaxBlockBlastVecEnv(num_envs=n_envs, config_path=cfg["env_config"], seed=seed)
+        eval_env = DummyVecEnv(eval_fns)
+    elif args.use_batch:
         train_env = BlockBlastBatchEnv(num_envs=n_envs, config_path=cfg["env_config"], seed=seed)
         eval_env = DummyVecEnv(eval_fns)
     elif args.use_subproc:

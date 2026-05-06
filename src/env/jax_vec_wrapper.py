@@ -86,12 +86,8 @@ class JaxBlockBlastVecEnv(VecEnv):
         self._seed = int(seed) if seed is not None else 0
         master_key = jax.random.PRNGKey(self._seed)
 
-        # Initial state
+        # Initial state. np.asarray implicit sync; açık block çağrısı yok.
         self._state: JaxState = self._reset_fn(num_envs, master_key)
-        # State'in device'a yerleştiğini garantile (jit cache warm)
-        self._state.boards.block_until_ready()
-
-        # Cached numpy mask (env_method('action_masks') ve action_masks() için)
         self._cached_mask_np: np.ndarray = np.asarray(self._state.cached_mask, dtype=bool)
 
         # step_async slot
@@ -107,7 +103,8 @@ class JaxBlockBlastVecEnv(VecEnv):
         # mevcut state'in master_key'inden ilerlesin.
         master_key = jax.random.fold_in(master_key, 0xC0FFEE)
         self._state = self._reset_fn(self.num_envs, master_key)
-        self._state.boards.block_until_ready()
+        # NOT: block_until_ready() çağrılmıyor; aşağıdaki np.asarray() implicit
+        # sync yapıyor. Açık block JAX async dispatch'i öldürüyordu.
         self._cached_mask_np = np.asarray(self._state.cached_mask, dtype=bool)
         return self._build_obs_numpy(self._state)
 
@@ -130,33 +127,45 @@ class JaxBlockBlastVecEnv(VecEnv):
             ep_lengths_pre,
         ) = self._step_fn(self._state, self._actions_jax)
 
-        # Bekle (gerçekten async pipeline lazımsa kullanıcı dispatch edip
-        # block_until_ready() çağırabilir, default eager).
+        # Tek stratejik block: jit kuyruğu birikmesin (open-loop async dispatch
+        # memory pressure yapıyordu — RSS 2.6→5.1 GB regress). Geri kalan
+        # alanlar np.asarray ile zaten implicit sync.
         new_state.boards.block_until_ready()
 
         self._state = new_state
         self._cached_mask_np = np.asarray(new_state.cached_mask, dtype=bool)
-
-        # Host'a aktarım
         post_obs_np = self._jax_obs_to_numpy(post_obs_jax)
-        pre_obs_np = self._jax_obs_to_numpy(pre_obs_jax)
         reward = np.asarray(reward_jax, dtype=np.float32)
         done = np.asarray(done_jax, dtype=bool)
+
+        N = self.num_envs
+
+        # Sıcak yol — done.any()=False çoğunlukta. info boş; pre_obs/truncated/
+        # ep_stats host'a hiç inmesin. (Eski versiyon Python loop 2048× iterate
+        # ediyor + pre_obs full host'a iniyordu, ikisi de gereksiz.)
+        if not done.any():
+            infos: list[dict[str, Any]] = [{} for _ in range(N)]
+            return post_obs_np, reward, done, infos
+
+        # Bazı env'ler done — pre_obs full indir (slicing yerine; JAX gather op
+        # ek compute ekliyordu). Sadece done env'lerin info'su Python tarafında inşa.
+        pre_obs_np = self._jax_obs_to_numpy(pre_obs_jax)
         terminated = np.asarray(terminated_jax, dtype=bool)
         truncated = np.asarray(truncated_jax, dtype=bool)
         ep_r = np.asarray(ep_returns_pre, dtype=np.float32)
         ep_l = np.asarray(ep_lengths_pre, dtype=np.int32)
 
-        N = self.num_envs
-        infos: list[dict[str, Any]] = [{} for _ in range(N)]
-        for i in range(N):
-            if truncated[i] and not terminated[i]:
-                infos[i]["TimeLimit.truncated"] = True
-            if done[i]:
-                infos[i]["episode"] = {"r": float(ep_r[i]), "l": int(ep_l[i])}
-                infos[i]["terminal_observation"] = {
-                    k: pre_obs_np[k][i].copy() for k in pre_obs_np
-                }
+        infos = [{} for _ in range(N)]
+        trunc_only_idx = np.where(truncated & ~terminated)[0]
+        for i in trunc_only_idx:
+            infos[int(i)]["TimeLimit.truncated"] = True
+        done_idx = np.where(done)[0]
+        for i_arr in done_idx:
+            i = int(i_arr)
+            infos[i]["episode"] = {"r": float(ep_r[i]), "l": int(ep_l[i])}
+            infos[i]["terminal_observation"] = {
+                k: pre_obs_np[k][i].copy() for k in pre_obs_np
+            }
 
         return post_obs_np, reward, done, infos
 
@@ -188,9 +197,8 @@ class JaxBlockBlastVecEnv(VecEnv):
 
     def seed(self, seed: int | None = None) -> Sequence[None]:
         self._seed = int(seed) if seed is not None else 0
-        # Yeni state üret
+        # Yeni state üret. block_until_ready yok — np.asarray implicit sync.
         self._state = self._reset_fn(self.num_envs, jax.random.PRNGKey(self._seed))
-        self._state.boards.block_until_ready()
         self._cached_mask_np = np.asarray(self._state.cached_mask, dtype=bool)
         return [None] * self.num_envs
 
