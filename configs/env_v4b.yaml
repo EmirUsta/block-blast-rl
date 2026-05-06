@@ -1,0 +1,45 @@
+# v4b — Cam Top (Glass Cannon) tedavisi.
+#
+# Hipotez: v3'te ajan kısa-yoğun oyunlara optimize oldu çünkü:
+#   - Line clear bonusu fazla cazipti (10×3^(n-1) → 1=10, 2=30, 3=90, 4=270)
+#   - Hole penalty -2.0 fazla cezalandırıcıydı (tahta dolaşıma direnç)
+#   - Game over -10 yetersiz (kombo yapmadan ölmek bile kârlı görünüyordu)
+#
+# v4b dengeleri:
+#   1) game_over -50 → erken ölüm artık ciddi cezalı (intihar komandosu olamaz)
+#   2) hole_penalty -0.2 → tahtaya yaklaşma serbestliği (kümeleşme zorlanmaz)
+#   3) bumpiness_penalty -0.05 → çok hafif düzen teşviki
+#   4) line_clear_table [_, 2, 10, 40, 120] → küçük clear cazip değil, kombo değer
+#
+# Uçtan uca matematik:
+#   - 1-clear (+2) yapıp 5 hole oluştursa: +1 - 5*0.2 + 2 = +2.0 (hâlâ pozitif)
+#   - 4-clear (+120) yapıp 10 hole oluştursa: +1 - 10*0.2 + 120 = +119
+#   - Game over (kombo yokken): +1 step - 50 = -49 → çok kötü
+#   - 5 step yaşayıp 0 clear: +5 - 50 = -45
+#   - 30 step yaşayıp 3×1-clear: +30 + 6 = +36 (orta)
+#   - 30 step yaşayıp 1×3-clear: +30 + 40 = +70 (iyi)
+#   - 30 step yaşayıp 1×4-clear: +30 + 120 = +150 (mükemmel)
+
+board:
+  size: 8
+
+tray:
+  size: 3
+  same_tray_unique: true
+
+pieces:
+  config_file: configs/pieces.yaml
+
+episode:
+  max_steps: 5000
+
+reward:
+  step: 1.0
+  game_over: -50.0              # was -10 — intihar engellendi
+  invalid_action: -1.0
+  hole_penalty: -0.2            # was -2.0 — tahtaya yaklaşma serbestliği
+  hole_max_size: 2
+  bumpiness_penalty: -0.05      # was -0.1 — çok hafif düzen teşviki
+  # Line clear tablosu — index = n_lines (0..4+).
+  # 0 (no clear) → 0; 1 → +2; 2 → +10; 3 → +40; 4+ → +120.
+  line_clear_table: [0.0, 2.0, 10.0, 40.0, 120.0]

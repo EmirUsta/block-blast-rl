@@ -1,0 +1,48 @@
+# v4a — Ablation: SADECE mimari değişikliği test et.
+#
+# Değişen tek şey (v2 → v4a):
+#   - Mimari: early fusion (4 grid + 3 placements = 7 kanal CNN) + stride=2 bottleneck.
+#   - Param 740K → 347K (-%53).
+#
+# Aynı tutulan (v2 ile birebir):
+#   - env_config: configs/env.yaml (SADE SURVIVAL — hole/bumpiness/line_clear hepsi 0).
+#   - batch_size: 256
+#   - n_envs: 16, n_steps: 2048, gamma 0.99, gae 0.95, clip 0.2, ent 0.01, vf 0.5.
+#
+# Hipotez: v3'ün başarısızlığı reward shaping'tendi, mimari değil. v4a v2'yi
+# geçerse → mimari pozitif, reward shaping negatif. v4a v2 ile eşit veya
+# altındaysa → mimari nötr/küçük negatif.
+
+algo: MaskablePPO
+policy: MultiInputPolicy
+
+policy_kwargs:
+  features_dim: 256
+  cnn_channels: [32, 64]
+  history_embed_dim: 16
+
+learning_rate: 3.0e-4
+n_steps: 2048
+batch_size: 256              # v2 ile aynı (v3'te 1024 idi)
+n_epochs: 10
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.2
+ent_coef: 0.01
+vf_coef: 0.5
+max_grad_norm: 0.5
+target_kl: 0.03
+
+n_envs: 16
+total_timesteps: 10_000_000
+
+eval_freq: 25_000
+n_eval_episodes: 20
+checkpoint_freq: 100_000
+
+env_config: configs/env.yaml   # SADE survival, hole/bumpiness/line_clear KAPALI
+tensorboard_log: logs/tensorboard
+verbose: 1
+
+seed: 45
+device: auto

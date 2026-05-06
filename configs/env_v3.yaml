@@ -1,0 +1,34 @@
+# v3 env: v1/v2'nin üstüne 3 ek shaping terimi (hepsi asimetrik / yalnız "kötü
+# yöne giden delta" cezalandırılır):
+#
+#   1) hole_penalty       -0.5  × Δ(küçük 1-2 hücre izole boş ada)
+#   2) bumpiness_penalty  -0.1  × Δ(boş 4-connected component sayısı, saçılma)
+#   3) line_clear_base    +10.0 × 3^(n-1)  (1=10, 2=30, 3=90, 4=270, ...)
+#
+# Felsefe: survival ana eksen (+1/step), shaping küçük eksen. Line clear
+# ödülü en güçlüsü ama nadir olur, ortalama ep'de net etki dengeli kalmalı.
+
+board:
+  size: 8
+
+tray:
+  size: 3
+  same_tray_unique: true
+
+pieces:
+  config_file: configs/pieces.yaml
+
+episode:
+  max_steps: 5000
+
+reward:
+  step: 1.0
+  game_over: -10.0
+  invalid_action: -1.0
+  # Hole penalty -2.0: line_clear +10 başına ~5 hole tolere — reward hacking dengesi.
+  # -0.5 ile bu denge ~20 hole'a çıkıyordu (anlamsız), -2.0 ile makul.
+  hole_penalty: -2.0
+  hole_max_size: 2              # 1- ve 2-hücreli adalar "hole"
+  bumpiness_penalty: -0.1       # her yeni boş ada (component) için
+  line_clear_base: 10.0         # 1 line = 10
+  line_clear_exp: 3.0           # 2 line = 30, 3 line = 90, 4 = 270, ...

@@ -1,0 +1,50 @@
+# v4b_optimized_reward — Glass Cannon tedavi.
+#
+# DEĞİŞMEYEN (v4a ile birebir):
+#   - Mimari: 7-kanal early fusion (grid 4 + placements 3) + Conv s=2 bottleneck
+#     → Flatten 1024 → Linear(1024→128). Toplam ~347K param.
+#   - PPO defaults: gamma 0.99, gae 0.95, clip 0.2, ent 0.01, vf 0.5,
+#     max_grad_norm 0.5, target_kl 0.03, n_steps 2048, n_envs 16, 10M step.
+#
+# DEĞİŞEN:
+#   - env_config: configs/env_v4b.yaml (game_over=-50, hole=-0.2, bumpiness=-0.05,
+#     line_clear_table=[0,2,10,40,120]).
+#   - batch_size: 1024 (kullanıcı talebine göre, v3'teki gibi büyük batch).
+#
+# Hipotez: Reward shaping dengesi düzeltilirse mimari (v4a 21.9 ep_len) üzerine
+# clear/episode artışı bekleniyor (v4a 4.96 → v4b ?). Glass Cannon davranışı
+# game_over=-50 ile bastırılır.
+
+algo: MaskablePPO
+policy: MultiInputPolicy
+
+policy_kwargs:
+  features_dim: 256
+  cnn_channels: [32, 64]
+  history_embed_dim: 16
+
+learning_rate: 3.0e-4
+n_steps: 2048
+batch_size: 1024              # was 256 (v4a) — kullanıcı talebi
+n_epochs: 10
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.2
+ent_coef: 0.01
+vf_coef: 0.5
+max_grad_norm: 0.5
+target_kl: 0.03
+
+n_envs: 16
+total_timesteps: 10_000_000
+
+eval_freq: 25_000
+n_eval_episodes: 20
+checkpoint_freq: 100_000
+
+env_config: configs/env_v4b.yaml
+tensorboard_log: logs/tensorboard
+verbose: 1
+
+seed: 46
+device: auto

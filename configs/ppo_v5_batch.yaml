@@ -1,0 +1,60 @@
+# v5_batch — BatchEnv (tek-process vectorized) için tunlanmış config.
+#
+# Değişiklikler v4a → v5 (sadece compute/throughput; reward + mimari KORUNDU):
+#   - Backend: SubprocVecEnv → BlockBlastBatchEnv (--use-batch flag)
+#   - n_envs: 16 → 64    (env-step throughput ~1.5× artar)
+#   - n_steps: 2048 → 512  (rollout_size 32K SABİT — KL/entropy tuning aynen geçerli)
+#   - batch_size: 256 → 1024  (32 minibatch/update — gradient noise düşer)
+#
+# Aynı tutulan (v4a):
+#   - Mimari: 7-kanal early fusion + bottleneck CNN, ~347K param
+#   - PPO: gamma=0.99 gae=0.95 clip=0.2 ent=0.01 vf=0.5 lr=3e-4
+#         max_grad_norm=0.5 target_kl=0.03 n_epochs=10
+#   - env_config: configs/env.yaml (sade survival)
+#
+# Neden N=64 / n_steps=512 (N=128 / n_steps=256 değil)?
+#   - PPO benchmark (200K): N=128 ts/s=7305 (+%5), N=64 ts/s=6925.
+#     Marjinal hız farkı, ama N=128'in horizon'u 256 step → episode başına yarım
+#     trajectory ortalama → gradient variance artar.
+#   - GPU util: N=64 avg=27% p95=60%, N=128 avg=21% p95=53% → N=64 GPU'yu daha
+#     iyi besliyor (rollout collect aşaması daha az parent CPU bound).
+#   - rollout_size=32K mevcut SubprocVec config'i ile birebir aynı boyut →
+#     KL/entropy hyperparameter'ları yeniden tune etmek gerekmez.
+#
+# Eğitim komutu:
+#   python -m src.scripts.train --config configs/ppo_v5_batch.yaml --use-batch \
+#          --run-name v5_batch64 --total-timesteps 10000000
+
+algo: MaskablePPO
+policy: MultiInputPolicy
+
+policy_kwargs:
+  features_dim: 256
+  cnn_channels: [32, 64]
+  history_embed_dim: 16
+
+learning_rate: 3.0e-4
+n_steps: 512                  # was 2048 (v4a) → rollout 32K SABİT (16×2048 = 64×512)
+batch_size: 1024              # was 256 — minibatch count = 32 (1/32 of rollout)
+n_epochs: 10
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.2
+ent_coef: 0.01
+vf_coef: 0.5
+max_grad_norm: 0.5
+target_kl: 0.03
+
+n_envs: 64                    # was 16 → tek-process batched env
+total_timesteps: 10_000_000
+
+eval_freq: 25_000
+n_eval_episodes: 20
+checkpoint_freq: 100_000
+
+env_config: configs/env.yaml
+tensorboard_log: logs/tensorboard
+verbose: 1
+
+seed: 47
+device: auto
