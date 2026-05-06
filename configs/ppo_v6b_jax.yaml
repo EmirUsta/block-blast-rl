@@ -1,0 +1,65 @@
+# v6b_jax_512x64 — n_steps horizon kalibrasyonu.
+#
+# Değişiklikler v6_jax_2048 → v6b_jax_512x64 (sadece N × n_steps trade-off):
+#   - n_envs: 2048 → 512    (÷4)
+#   - n_steps: 16 → 64      (×4)
+#   - batch_size: 1024 (aynı, minibatch_count=32)
+#   - rollout_size: 32,768 (SABİT)
+#
+# Hipotez: v6_jax_2048 1000-ep eval ep_len mean=20.6 (v5'in 22.5'inden -%8.4).
+# n_steps=16 < mean_ep_length=22.5 → rollout horizon'u ortalama bir episode'u
+# kapsamıyor, GAE bootstrap çoğu trajectory'de fully-terminated → value
+# function uzun horizon'u öğrenmekte yetersiz.
+#
+# n_steps=64 → mean_ep_length=22.5'in ~2.84 katı → her trajectory ortalama
+# 2-3 episode + bootstrap, GAE noise normalize.
+#
+# Aynı tutulan (v6_jax_2048):
+#   - Backend: JaxBlockBlastVecEnv (--use-jax)
+#   - Mimari: 7-kanal early fusion + bottleneck CNN, ~347K param
+#   - PPO: lr=3e-4, gamma=0.99, gae=0.95, clip=0.2, ent=0.01, vf=0.5,
+#         max_grad_norm=0.5, target_kl=0.03, n_epochs=10
+#   - env_config: configs/env.yaml (sade survival)
+#
+# Beklenen wallclock 10M:
+#   - v6_jax_2048 (N=2048, n_steps=16):  14:14
+#   - v6b_jax_512x64 (N=512, n_steps=64): ~15-18 dk (env step daha az ama
+#     N daha küçük, GPU underutilization riski)
+#
+# Eğitim komutu:
+#   python -m src.scripts.train --config configs/ppo_v6b_jax.yaml --use-jax \
+#          --run-name v6b_jax_512x64 --total-timesteps 10000000
+
+algo: MaskablePPO
+policy: MultiInputPolicy
+
+policy_kwargs:
+  features_dim: 256
+  cnn_channels: [32, 64]
+  history_embed_dim: 16
+
+learning_rate: 3.0e-4
+n_steps: 64                   # was 16 (v6) → mean_ep_len 22.5'in ~2.84 katı
+batch_size: 1024              # aynı — minibatch_count=32
+n_epochs: 10
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.2
+ent_coef: 0.01
+vf_coef: 0.5
+max_grad_norm: 0.5
+target_kl: 0.03
+
+n_envs: 512                   # was 2048 (v6) → rollout 32K SABİT (512×64 = 2048×16)
+total_timesteps: 10_000_000
+
+eval_freq: 25_000
+n_eval_episodes: 20
+checkpoint_freq: 100_000
+
+env_config: configs/env.yaml
+tensorboard_log: logs/tensorboard
+verbose: 1
+
+seed: 51
+device: auto
