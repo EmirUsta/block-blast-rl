@@ -36,7 +36,7 @@ Birinci denemede 5+ shaping terimi aynı anda devredeydi. Ajan hangisine optimiz
 
 ## 2. Observation: Geçmişi gör, geleceği critic'e bırak
 
-Kullanıcı talebi: "modelin eline gelen 3 şekli görsün, önceki hamlelerini hatırlasın, sonraki hamlelerini öngörsün, tahmin etsin."
+Hedef: model eldeki 3 parçayı görsün, önceki hamlelerini hatırlasın ve sonraki hamleleri öngörebilsin.
 
 ### Karar
 Observation şu Dict alanlarından oluşur:
@@ -58,7 +58,7 @@ Son 8 hamle action_id olarak verilir, embed katmanı (örneğin 16-dim) ile göm
 ### Gerekçe — sonrayı "öngörme"
 PPO'nun **value head'i (critic)** tam olarak bunu yapar: V(s) = expected future return. Yani critic ağı zaten "sonraki hamlelere bağlı kazanç" tahminidir. Ekstra forward-model eklemiyoruz çünkü:
 1. Block Blast'ta tray refill stokastik (random) → mükemmel öngörü matematiksel olarak imkânsız.
-2. World-model eklemek pipeline'ı 3-4 katına çıkarır, kullanıcı "komplike olmasın" dedi.
+2. World-model eklemek pipeline'ı 3-4 katına çıkarır, proje sade tutulmak istendi.
 3. Zaten critic'in V tahmini bu işi yapar.
 
 ### Gerekçe — meta minimal
