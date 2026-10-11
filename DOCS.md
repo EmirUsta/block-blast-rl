@@ -15,7 +15,7 @@ Yapı: en yeni en üstte. Her giriş tarihli. Format:
 
 ## 2026-05-05 — Proje iskeleti kuruldu
 
-**Ne:** `/home/emir/Emir/BlockBlast 2. deneme/` boş dizininden başlayarak şu yapı oluşturuldu:
+**Ne:** Boş bir dizinden başlayarak şu yapı oluşturuldu:
 - `configs/` — `pieces.yaml`, `env.yaml`, `ppo.yaml`
 - `src/game/` — `pieces.py`, `board.py`, `tray.py`, `game.py` (saf oyun, headless)
 - `src/env/` — `encoding.py`, `masking.py`, `env.py` (gymnasium wrapper)
@@ -25,13 +25,12 @@ Yapı: en yeni en üstte. Her giriş tarihli. Format:
 - `docs/` — `architecture.md`, `log.md`
 - `README.md`, `DESIGN.md`, `DOCS.md`
 
-**Neden:** Birinci denemenin (`/home/emir/Emir/block blast/`) başarısız v5 sonucu üzerine kullanıcı temiz başlangıç istedi. Birinci denemede çoklu reward shaping, geniş META, curriculum, VecNormalize ve büyük ağ aynı anda devredeydi → ajan hayatta kalmayı bile öğrenemedi. Bu projede tek bir hedef: **survival**. Diğer her şey sıfırlandı.
+**Neden:** Birinci denemenin başarısız v5 sonucu üzerine temiz bir başlangıç yapıldı. Birinci denemede çoklu reward shaping, geniş META, curriculum, VecNormalize ve büyük ağ aynı anda devredeydi → ajan hayatta kalmayı bile öğrenemedi. Bu projede tek bir hedef: **survival**. Diğer her şey sıfırlandı.
 
 **Sonuç:**
 - `pytest tests/ -q` → 10 passed in 3.67s
   - test_smoke (8 test): action bijection, game step, env shapes, survival reward, history & frame stack güncellenmesi, invalid → terminate, config dosyaları var.
   - test_policy_smoke (2 test): MaskablePPO build + 128 step learn(), predict döngüsü.
-- Eğitim henüz başlatılmadı (kullanıcı "sonraki promptu vericem" dedi → bekleniyor).
 
 ## 2026-05-05 — v1_survival eğitimi başlatıldı
 
@@ -260,7 +259,6 @@ reward = +1.0 (başarılı yerleştirme)
 
 **Sentetik doğrulama:** 15 adımlık deterministic rollout'ta her hole-yaratan hamlede +0.5, double-hole'da 0.0 reward; hole azalmasında ceza yok (asimetri ✓).
 
-**Sonraki adım:** kullanıcı eğitimi başlatmadan önce daha fazla değişiklik biriktirebilir.
 
 ### v3'e ek: bumpiness + line_clear (eksponansiyel)
 
@@ -469,7 +467,7 @@ Yeni: cat(grid+placements)=(7,8,8) → Conv(7→32, s=1) → Conv(32→64, s=2) 
 
 **Komut:** `python -m src.scripts.train --config configs/ppo_v4a.yaml --run-name v4a_arch_only --use-subproc`
 **PID:** 88566 (CUDA, batch=256, env.yaml=sade survival).
-**Hedef:** kullanıcı talebi — 5M step'te durdur, v2 5M (19.89) ve v3 5M (17.86) ile karşılaştır.
+**Hedef:** 5M step'te durdur, v2 5M (19.89) ve v3 5M (17.86) ile karşılaştır.
 
 ### Snapshot @ 01:47 (~7 dak, 1.51M / 5M-hedef %30)
 
@@ -493,7 +491,7 @@ Yeni: cat(grid+placements)=(7,8,8) → Conv(7→32, s=1) → Conv(32→64, s=2) 
 - Mimari değişikliği geç-patlama eğrisi — önceki "kötü" yorumum revize edildi.
 - 5M'e ~14 dak.
 
-### v4a TAMAMLANDI 10M (kullanıcı 5M durdurmayı iptal edip 10M'e devam dedi)
+### v4a TAMAMLANDI 10M (5M yerine 10M'e devam edildi)
 
 **1000-ep eval:**
 - ep_len mean=**21.9** (median 20, max **65**)
@@ -568,6 +566,5 @@ v4a sadece mimariyi (early fusion + stride=2 bottleneck) değiştirip v2 reward'
 - Anti-frustration tray — ajanın gerçek dağılımla başa çıkmasını öğrenmesi gerek.
 - Ensure-solvable refill — ajan game-over olabilmeli ki hatalardan öğrensin.
 
-**Sonraki adım (kullanıcı promptunu bekliyor):** muhtemelen `python -m src.scripts.train` ile 2M step eğitim.
 
 ---
