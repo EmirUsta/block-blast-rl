@@ -14,7 +14,6 @@ En yeni en üstte. Her giriş tarihli ve kısa: bir cümle yetiyorsa bir cümle.
 - [done] `tests/test_smoke.py` — Game step, env reset/step/reward, masking smoke.
 - [done] `tests/test_policy_smoke.py` — MaskablePPO build + kısa learn + predict döngüsü.
 - [done] Pytest 10/10 yeşil (3.67s; 1. denemenin venv'si reuse edildi).
-- [next] Eğitim — kullanıcı promptu bekleniyor.
 - [done] v1_survival eğitimi başlatıldı (2M step, GPU, run-name=v1_survival, PID 31144).
 - [done] TensorBoard 6006'da çalışıyor (logdir=logs/tensorboard).
 - [next] Periyodik ilerleme kontrolü.
@@ -24,7 +23,6 @@ En yeni en üstte. Her giriş tarihli ve kısa: bir cümle yetiyorsa bir cümle.
 ## 2026-05-06
 
 - [done] v3 hazırlık: count_small_islands metric, env hole_penalty integration, env_v3.yaml (-0.5), ppo_v3.yaml (batch=1024 + env_v3). pytest 20/20 yeşil.
-- [next] Kullanıcı v3'e başka değişiklik(ler) eklemek istiyor → biriktiriyoruz.
 - [done] v3'e ek: count_empty_components, bumpiness_penalty -0.1, line_clear_base 10 + exp 3. pytest 27/27 yeşil. 500-step random sanity ✓.
 - [done] v3'e ek: hole_penalty -0.5 → -2.0 (reward hacking dengesi).
 - [done] v3 mimari: early fusion (grid+placements 7-kanal CNN) + bottleneck (stride=2, 4×4 flatten). Param 740K → **347K** (-%53). pytest 27/27 yeşil.
@@ -38,7 +36,7 @@ En yeni en üstte. Her giriş tarihli ve kısa: bir cümle yetiyorsa bir cümle.
 - [done] v4b N=64 (BFS aktif) 6,381 fps — v4a N=64'in (19,320) **3× yavaşı**; reward shaping kullanılırsa hole/component vectorize edilmeli.
 - [done] 500K sanity training KS-test pencereleri (50K boy, 10 pencere): batch16 vs subproc16 (pure backend) 8/10 PASS, |Δ|=0.01; batch64 vs subproc16 (önerilen config) 8/10 PASS, |Δ|=0.03. **Onay: backend + config eğitim eğrisini bozmuyor.**
 - [done] **v5_batch64 10M (BatchEnv N=64, n_steps=512, batch=1024) wallclock 23.5 dk** (v4a SubprocVec ~46 dk → −%49). 1000-ep eval: ep_len **22.5**, clears/ep **5.20**, score **139.2**, clears/move **0.2315**. v4a'yı (21.9/4.96/134.3/0.2264) **her metrikte geçti**, **YENİ ŞAMPİYON**.
-- [done] Repo GitHub'a yüklendi (private): `EmirUsta/block-blast-rl`, SSH deploy key + host alias.
+- [done] Repo GitHub'a yüklendi: `EmirUsta/block-blast-rl`.
 - [done] **JAX GPU-resident env** yazıldı (`src/env/jax_env.py` + `src/env/jax_vec_wrapper.py`): jit-compiled step kernel, fancy-index sliding window action mask (12×12 pad-true scratch), vmap'li OR-scatter place, tek master key PRNG. Drop-in SB3 VecEnv, obs Dict layout v4a policy ile birebir aynı. Reward shaping (hole/component) build-time flag ile bypass'lı (v4a default'unda compile dışı). flax.struct.dataclass state. Auto-reset + terminal_observation pattern numpy env'in birebir kopyası.
 - [done] Parity testleri (`tests/test_jax_env_parity.py`) 2/2 PASS — Test 5 (10K random state action_mask byte-equivalence CPU mode) 0 mismatch; Test 4 (KS distribution 500 ep N=64 random policy) 10/10 pencere PASS, |Δmean|=0.86 < 1.5.
 - [done] **JAX throughput sweep** (`examples/jax_throughput.py`, RTX 4050 6 GB, random policy 30s/N): N=64 39K ts/s, N=256 104K, N=512 152K, **N=2048 208K (sweet spot)**, N=8192 147K (VRAM saturation). v5_batch64 numpy N=64 7,200 ts/s baseline'ına göre **~29×** hızlanma. GPU util %13 (random policy; PPO loop'unda forward+backward yük bindiğinde doygunluk artar). Hedefler: N=512 30K+ ✓, N=2048 100K+ ✓ (2×), N=8192 200K+ ✗ (6 GB VRAM saturation).
