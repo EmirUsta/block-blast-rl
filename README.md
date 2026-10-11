@@ -1,5 +1,7 @@
 # Block Blast RL: Survival-First PPO
 
+[![CI](https://github.com/EmirUsta/block-blast-rl/actions/workflows/ci.yml/badge.svg)](https://github.com/EmirUsta/block-blast-rl/actions/workflows/ci.yml)
+
 A MaskablePPO agent for an 8x8 Block Blast clone, trained with a deliberately minimal reward: **+1 for every placed piece, -10 on game over**. This is the first version of the project; the faster JAX rewrite with AlphaZero-style agents lives in [block-blast-jax-rl](https://github.com/EmirUsta/block-blast-jax-rl).
 
 ## Key results
